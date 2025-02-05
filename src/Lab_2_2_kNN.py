@@ -19,7 +19,7 @@ def minkowski_distance(a, b, p=2):
         float: Minkowski distance between arrays a and b.
     """
     dist = 0
-    for i, j in a, b:
+    for i, j in zip(a, b):
         dist += abs(i - j)**p
     return dist**(1/p)
 
@@ -52,8 +52,11 @@ class knn:
             k (int, optional): Number of neighbors to use. Defaults to 5.
             p (int, optional): The degree of the Minkowski distance. Defaults to 2.
         """
-        if len(X_train) != len(y_train) or k < 0 or p < 0:
-            raise ValueError
+        if X_train.shape[0] != y_train.shape[0]:
+            raise ValueError("Length of X_train and y_train must be equal.")
+        
+        if k <= 0 or p <= 0:
+            raise ValueError("k and p must be positive integers.")
 
         self.x_train = X_train
         self.y_train = y_train
@@ -421,3 +424,6 @@ def plot_roc_curve(y_true, y_probs, positive_label):
     plt.show()
 
     return {"fpr": np.array(fpr), "tpr": np.array(tpr)}
+model = knn()
+print(model.fit(X_train = np.array([[1, 2],
+       [3, 4]]), y_train = np.array([0, 1]), k = -1, p = 2))
