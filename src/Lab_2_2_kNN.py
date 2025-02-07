@@ -76,7 +76,7 @@ class knn:
         proba = self.predict_proba(X)
         labels = []
         for p in proba:
-            if p >= 0.5:
+            if p[0] >= 0.5:
                 labels.append(1)
             else:
                 labels.append(0)
@@ -102,7 +102,7 @@ class knn:
             for i in neigh:
                 if self.y_train[i] == 1:
                     y.append(self.y_train[i])
-            proba.append(len(y)/self.k)
+            proba.append((len(y)/self.k, 1 - len(y)/self.k))
         return np.array(proba)
 
     def compute_distances(self, point: np.ndarray) -> np.ndarray:
@@ -130,7 +130,7 @@ class knn:
             You might want to check the np.argsort function.
         """
         indexes = [index for index in np.argsort(distances)]
-        return np.array(indexes)
+        return np.array(indexes[:self.k])
 
     def most_common_label(self, knn_labels: np.ndarray) -> int:
         """Obtain the most common label from the labels of the k nearest neighbors
@@ -254,10 +254,19 @@ def evaluate_classification_metrics(y_true, y_pred, positive_label):
     y_true_mapped = np.array([1 if label == positive_label else 0 for label in y_true])
     y_pred_mapped = np.array([1 if label == positive_label else 0 for label in y_pred])
 
-    TP = (y_true == 1) & (y_pred == 1)
-    FP = (y_true == 0) & (y_pred == 1)
-    FN = (y_true == 1) & (y_pred == 0)
-    TN = (y_true == 0) & (y_pred == 0)
+    TP = 0
+    TN = 0
+    FN = 0
+    FP = 0
+    for y_true, y_pred in zip(y_true_mapped, y_pred_mapped):
+        if y_true == 1 and y_pred == 1:
+            TP += 1
+        elif y_true == 0 and y_pred == 0:
+            TN += 1
+        elif y_true == 0 and y_pred == 1:
+            FP += 1
+        elif y_true == 1 and y_pred == 0:
+            FN += 1
 
     # Confusion Matrix
     confusion_matrix = [TN, FP, FN, TP]
@@ -266,19 +275,31 @@ def evaluate_classification_metrics(y_true, y_pred, positive_label):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
 
     # Precision
-    precision = TP / (TP + FP)
+    if TP != 0:
+        precision = TP / (TP + FP)
+    else: 
+        precision = 0
 
     # Recall (Sensitivity)
-    recall = TP / (TP + FN)
+    if TP != 0: 
+        recall = TP / (TP + FN)
+    else: 
+        recall = 0
 
     # Specificity
-    specificity = TN / (TN + FP)
+    if TN != 0:
+        specificity = TN / (TN + FP) 
+    else: 
+        specificity = 0
 
     # F1 Score
-    f1 = 2 * (precision * recall) / (precision + recall)
+    if precision == 0 or recall == 0:
+        f1 = 0
+    else:
+        f1 = 2 * (precision * recall) / (precision + recall)
 
     return {
-        "Confusion Matrix": [TN, FP, FN, TP],
+        "Confusion Matrix": confusion_matrix,
         "Accuracy": accuracy,
         "Precision": precision,
         "Recall": recall,
@@ -424,6 +445,4 @@ def plot_roc_curve(y_true, y_probs, positive_label):
     plt.show()
 
     return {"fpr": np.array(fpr), "tpr": np.array(tpr)}
-model = knn()
-print(model.fit(X_train = np.array([[1, 2],
-       [3, 4]]), y_train = np.array([0, 1]), k = -1, p = 2))
+
