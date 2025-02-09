@@ -275,28 +275,16 @@ def evaluate_classification_metrics(y_true, y_pred, positive_label):
     accuracy = (TP + TN) / (TP + TN + FP + FN)
 
     # Precision
-    if TP != 0:
-        precision = TP / (TP + FP)
-    else: 
-        precision = 0
-
+    precision = TP / (TP + FP) if (TP + FP) != 0 else 0
+    
     # Recall (Sensitivity)
-    if TP != 0: 
-        recall = TP / (TP + FN)
-    else: 
-        recall = 0
+    recall = TP / (TP + FN) if (TP + FN) != 0 else 0
 
     # Specificity
-    if TN != 0:
-        specificity = TN / (TN + FP) 
-    else: 
-        specificity = 0
-
+    specificity = TN / (TN + FP) if (TN + FP) != 0 else 0
+    
     # F1 Score
-    if precision == 0 or recall == 0:
-        f1 = 0
-    else:
-        f1 = 2 * (precision * recall) / (precision + recall)
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision != 0 and recall != 0) else 0
 
     return {
         "Confusion Matrix": confusion_matrix,
@@ -333,22 +321,26 @@ def plot_calibration_curve(y_true, y_probs, positive_label, n_bins=10):
     """
     y_true_mapped = np.array([1 if label == positive_label else 0 for label in y_true])
 
-    bin_centers = []
-    y_probs = [y_probs[int(len(y_probs)*i/n_bins):int(len(y_probs)*(i + 1)/n_bins)] for i in range(0, n_bins)]
-    for bin in y_probs:
-        bin_centers.append(bin.mean())
+    bin_edges = np.linspace(0, 1, n_bins + 1)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
     true_proportions = []
-    y_true = [y_true[int(len(y_probs)*i/n_bins):int(len(y_probs)*(i + 1)/n_bins)] for i in range(0, n_bins)]
-    for bin in y_true:
-        n_1 = 0
-        for label in bin:
-            if label == 1:
-                n_1 += 1
-        true_proportions.append(n_1/len(bin))
+    mean_pred_probs = []
 
-    plt.plot(bin_centers, true_proportions, marker='o', linestyle='-', color='b', label='Calibration curve')
-    plt.xlabel('Bin centers')
+    for i in range(n_bins):
+        bin_mask = (y_probs >= bin_edges[i]) & (y_probs < bin_edges[i + 1])
+        bin_true_labels = y_true[bin_mask]
+        bin_pred_probs = y_probs[bin_mask]
+
+        if len(bin_true_labels) > 0:
+            true_proportions.append(np.mean(bin_true_labels))
+            mean_pred_probs.append(np.mean(bin_pred_probs))
+        else:
+            true_proportions.append(np.nan) 
+            mean_pred_probs.append(np.nan)
+
+    plt.plot(mean_pred_probs, true_proportions, marker='o', linestyle='-', color='b', label='Calibration curve')
+    plt.xlabel('Mean predicted probability')
     plt.ylabel('True proportions')
     plt.title('Calibration curve')
     plt.legend()
@@ -427,14 +419,23 @@ def plot_roc_curve(y_true, y_probs, positive_label):
 
     tpr = []
     fpr = []
-    for i in np.arange(0, 1, 0.001):
-        TP = (y_true == 1) & (y_probs >= i)
-        FP = (y_true == 0) & (y_probs >= i)
-        FN = (y_true == 1) & (y_probs < i)
-        TN = (y_true == 0) & (y_probs < i)
+    for i in np.linspace(0, 1, 11):
+        TP = 0
+        TN = 0
+        FN = 0
+        FP = 0
+        for y_true, y_pred in zip(y_true_mapped, y_probs):
+            if y_true == 1 and y_pred >= i:
+                TP += 1
+            elif y_true == 0 and y_pred < i:
+                TN += 1
+            elif y_true == 0 and y_pred >= i:
+                FP += 1
+            elif y_true == 1 and y_pred < i:
+                FN += 1
 
-        tpr.append(TP / (TP + FN))
-        fpr.append(FP / (TN + FP))
+        tpr.append(TP / (TP + FN) if (TP + FN) > 0 else 0)
+        fpr.append(FP / (TN + FP) if (TN + FP) > 0 else 0)
 
     plt.plot(fpr, tpr, marker='o', linestyle='-', color='b', label='Curva ROC')
     plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Azar')  
@@ -445,4 +446,3 @@ def plot_roc_curve(y_true, y_probs, positive_label):
     plt.show()
 
     return {"fpr": np.array(fpr), "tpr": np.array(tpr)}
-
